@@ -1,6 +1,5 @@
-static DEFAULT_OUTPUT_FOLDER: &str = "release";
-static DEFAULT_OUTPUT_FILE: &str = "transpiled";
-static DEFAULT_INPUT_FILE: &str = "main";
+static DEFAULT_OUTPUT_FILE: &str = "./release/transpiled.cs";
+static DEFAULT_INPUT_FILE: &str = "./src/main.cs";
 static DEFAULT_IMPORTER_REGEX: &str = r#"importar\((.*?)\)|import\((.*?)\)"#;
 
 pub mod utils {
@@ -23,26 +22,26 @@ mod finder {
 	use lazy_static::lazy_static;
 	use regex::Regex;
 
-	pub fn find_import(line: &str) -> Result<&str, ()> {
+	pub fn find_import(line: &str) -> Option<&str> {
 		lazy_static! {
 			static ref RE_IMPORT: Regex = Regex::new(crate::DEFAULT_IMPORTER_REGEX).unwrap();
 		}
 		match RE_IMPORT.captures(line) {
 			Some(caps) => {
 				if let Some(caps) = caps.get(1) {
-					return Ok(caps.as_str());
+					return Some(caps.as_str());
 				} else {
-					return Ok(caps.get(2).unwrap().as_str());
+					return Some(caps.get(2).unwrap().as_str());
 				}
 			}
-			None => return Err(())
+			None => return None
 		};
 	}
 
 	#[test]
 	fn _find_import() {
-		assert!(self::find_import("importar(\"./somepath/file61_test.cs\")").is_ok());
-		assert!(self::find_import("import(\"file52_test.cs\")").is_ok());
+		assert!(self::find_import("importar(\"./somepath/file61_test.cs\")").is_some());
+		assert!(self::find_import("import(\"file52_test.cs\")").is_some());
 		assert_eq!(
 			self::find_import("importar(\"./somepath/file21_test.cs\")").unwrap(),
 			"\"./somepath/file21_test.cs\""
@@ -64,17 +63,29 @@ mod includer {
 		Ok(io::BufReader::new(file).lines())
 	}
 
-	pub fn import(path: &str, callcheck: fn(String) -> Result<&'static str, ()>) -> Result<(), ()> {
+	pub fn import(path: &str, callcheck: fn(String) -> Option<&'static str>) -> Result<(), ()> {
+		//let output_file =
+		// OpenOptions::new().read(true).create(true).write(true).truncate(true).open(crate::DEFAULT_OUTPUT_FILE); match
+		// output_file { 	Err(why) => {
+		//		println!("Output file cannot be opened! {}", why);
+		//		return Err(());
+		//	}
+		//	Ok(_) => {
+		//		println!("Output file opened...");
+		//	}
+		//};
+
 		if let Ok(lines) = self::read_lines(path) {
 			for line in lines {
 				if let Ok(_content) = line {
 					match callcheck(_content) {
-						Ok(_path) => self::import(_path, callcheck)?, //Check path for more includes
-						Err(_) => ()                                  //Add line to output file
+						Some(_path) => self::import(_path, callcheck).unwrap_or(()), //Check path for more includes
+						None => ()                                                   //Add line to output file
 					}
 				}
 			}
 		} else {
+			println!("File path '{}' could not be opened", path);
 			return Err(());
 		}
 		Ok(())
@@ -82,8 +93,8 @@ mod includer {
 
 	#[test]
 	fn _import() {
-		assert!(self::import("./src/main.rs", |_content| Err(())).is_ok());
-		assert!(self::import("./notexistfile.txt", |_content| Err(())).is_err());
+		assert!(self::import("./src/main.rs", |_content| Some("a")).is_ok());
+		assert!(self::import("./notexistfile.txt", |_content| None).is_err());
 	}
 }
 
