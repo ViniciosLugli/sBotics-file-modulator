@@ -40,6 +40,25 @@ mod finder {
 		};
 	}
 
+	pub fn find_tabs(line: &str) -> Option<&str> {
+		lazy_static! {
+			static ref RE_TABS: Regex =
+				Regex::new(&*dotenv::var("TABS_REGEX").unwrap_or(r#"^(?:( )+|\t+)"#.to_string())).unwrap();
+		}
+		match RE_TABS.captures(line) {
+			Some(caps) => return Some(caps.get(0).unwrap().as_str()),
+			None => return None
+		};
+	}
+
+	#[test]
+	fn _find_tabs() {
+		assert_eq!(self::find_tabs("teste"), None);
+		assert_eq!(self::find_tabs("teste\t\t"), None);
+		assert_eq!(self::find_tabs("\t\t\tteste").unwrap(), "\t\t\t");
+		assert_eq!(self::find_tabs("   teste").unwrap(), "   ");
+	}
+
 	#[test]
 	fn _find_import() {
 		assert!(self::find_import("importar(\"./somepath/file61_test.cs\")").is_some());
@@ -107,5 +126,5 @@ mod includer {
 
 fn main() {
 	dotenv().ok();
-	includer::import("./src/main.rs", |_content| None).unwrap();
+	//includer::import("./src/main.rs", |_content| None).unwrap();
 }
