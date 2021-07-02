@@ -55,7 +55,7 @@ mod finder {
 mod includer {
 	use std::{
 		fs::*,
-		io::{self, BufRead},
+		io::{self, BufRead, Write},
 		path::Path
 	};
 
@@ -66,7 +66,7 @@ mod includer {
 	}
 
 	pub fn import(path: &str, callcheck: fn(String) -> Option<&'static str>) -> Result<(), ()> {
-		let mut output_file = OpenOptions::new()
+		let mut _output_file = OpenOptions::new()
 			.read(true)
 			.write(true)
 			.truncate(true)
@@ -81,14 +81,14 @@ mod includer {
 				Err(())
 			}
 		};
-		if open_output(output_file).is_err() {
+		if open_output(_output_file).is_err() {
 			println!("Creating output file...");
-			std::fs::create_dir_all(
-				(Path::new(&*dotenv::var("OUTPUT_FILE").unwrap_or("./release/transpiled.cs".to_string())))
-					.parent()
-					.unwrap()
-			)
-			.unwrap();
+			let _path_ss = &*dotenv::var("OUTPUT_FILE").unwrap_or("./release/transpiled.cs".to_string());
+			let _path_tc = Path::new(_path_ss);
+			create_dir_all(_path_tc.parent().unwrap()).unwrap();
+			File::create(_path_tc).unwrap();
+			let output_file = OpenOptions::new().read(true).write(true).truncate(true).open(_path_tc).unwrap();
+			write!(&output_file, "teste").unwrap();
 			println!("File created!");
 		}
 
@@ -115,4 +115,7 @@ mod includer {
 	}
 }
 
-fn main() { dotenv().ok(); }
+fn main() {
+	dotenv().ok();
+	includer::import("./src/main.rs", |_content| Some("a")).unwrap();
+}
