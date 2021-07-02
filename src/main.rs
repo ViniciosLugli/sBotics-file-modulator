@@ -40,23 +40,23 @@ mod finder {
 		};
 	}
 
-	pub fn find_tabs(line: &str) -> Option<&str> {
+	pub fn find_tabs(line: &str) -> &str {
 		lazy_static! {
 			static ref RE_TABS: Regex =
 				Regex::new(&*dotenv::var("TABS_REGEX").unwrap_or(r#"^(?:( )+|\t+)"#.to_string())).unwrap();
 		}
 		match RE_TABS.captures(line) {
-			Some(caps) => return Some(caps.get(0).unwrap().as_str()),
-			None => return None
+			Some(caps) => return caps.get(0).unwrap().as_str(),
+			None => return ""
 		};
 	}
 
 	#[test]
 	fn _find_tabs() {
-		assert_eq!(self::find_tabs("teste"), None);
-		assert_eq!(self::find_tabs("teste\t\t"), None);
-		assert_eq!(self::find_tabs("\t\t\tteste").unwrap(), "\t\t\t");
-		assert_eq!(self::find_tabs("   teste").unwrap(), "   ");
+		assert_eq!(self::find_tabs("teste"), "");
+		assert_eq!(self::find_tabs("teste\t\t"), "");
+		assert_eq!(self::find_tabs("\t\t\tteste"), "\t\t\t");
+		assert_eq!(self::find_tabs("   teste"), "   ");
 	}
 
 	#[test]
@@ -78,13 +78,9 @@ mod includer {
 		path::Path
 	};
 
-	fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
-	where P: AsRef<Path> {
-		let file = File::open(filename)?;
-		Ok(io::BufReader::new(file).lines())
-	}
+	use crate::finder;
 
-	pub fn import(path: &str, callcheck: fn(String) -> Option<&'static str>) -> Result<(), ()> {
+	pub fn open_output() -> File {
 		let _path_ss = &*dotenv::var("OUTPUT_FILE_unw").unwrap_or("./release/transpiled.cs".to_string());
 		let _path_tc = Path::new(_path_ss);
 		let mut output_file_unw = OpenOptions::new().write(true).truncate(true).open(_path_tc);
@@ -97,16 +93,29 @@ mod includer {
 			output_file_unw = std::fs::OpenOptions::new().write(true).truncate(true).open(_path_tc);
 			println!("File created!");
 		}
-		let mut output_file = output_file_unw.unwrap();
+		output_file_unw.unwrap()
+	}
 
+	fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
+	where P: AsRef<Path> {
+		let file = File::open(filename)?;
+		Ok(io::BufReader::new(file).lines())
+	}
+
+	pub fn import(path: &str, output_file: &mut File, mut idents: Option<&str>) -> Result<(), ()> {
+		if idents.is_none() {
+			idents = Some("");
+		}
 		if let Ok(lines) = self::read_lines(crate::remove_quotes!(path)) {
 			for line in lines {
 				if let Ok(_content) = line {
-					let line_content = format!("{}\n", &_content);
-					if let Some(_path) = callcheck(_content.to_string()) {
-						self::import(_path, callcheck).unwrap_or(());
+					println!("Tabs: {:?}", finder::find_tabs(&_content));
+					let line_content = format!("{tabs}{content}\n", tabs = idents.unwrap(), content = &_content);
+					if let Some(_path) = finder::find_import(&_content) {
+						self::import(_path, output_file, Some(finder::find_tabs(&_content))).unwrap_or(());
 					} else {
-						io::Write::write(&mut output_file, line_content.as_bytes()).unwrap();
+						println!("Write: {}", line_content);
+						io::Write::write(output_file, line_content.as_bytes()).unwrap();
 					}
 				}
 			}
@@ -119,12 +128,15 @@ mod includer {
 
 	#[test]
 	fn _import() {
-		assert!(self::import("./src/main.rs", |_content| Some("a")).is_ok());
-		assert!(self::import("./notexistfile.txt", |_content| None).is_err());
+		let mut output_file = self::open_output();
+		assert!(self::import("./src/main.rs", &mut output_file, None).is_ok());
+		assert!(self::import("./notexistfile.txt", &mut output_fil, None).is_err());
 	}
 }
 
 fn main() {
 	dotenv().ok();
-	//includer::import("./src/main.rs", |_content| None).unwrap();
+	let mut output_file = includer::open_output();
+	includer::import(&*dotenv::var("INPUT_FILE").unwrap_or("./src/main.cs".to_string()), &mut output_file, None)
+		.unwrap();
 }
