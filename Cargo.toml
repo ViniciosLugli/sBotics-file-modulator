@@ -8,3 +8,5 @@ edition = "2018"
 [dependencies]
 regex = "1.5.4"
 lazy_static = "1.4.0"
+dotenv = "0.15.0"
+dotenv_codegen = "0.15.0"

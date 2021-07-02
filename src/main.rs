@@ -1,8 +1,7 @@
-static DEFAULT_OUTPUT_FILE: &str = "./release/transpiled.cs";
-static DEFAULT_INPUT_FILE: &str = "./src/main.cs";
-static DEFAULT_IMPORTER_REGEX: &str = r#"importar\((.*?)\)|import\((.*?)\)"#;
+use dotenv::dotenv;
 
 pub mod utils {
+	#[macro_export]
 	macro_rules! remove_quotes {
 		($s:expr) => {{
 			$s.replace(&['\"', '\''][..], "")
@@ -11,10 +10,10 @@ pub mod utils {
 
 	#[test]
 	fn _remove_quotes() {
-		assert_eq!(remove_quotes!("\"./file76_test.cs\""), "./file76_test.cs");
-		assert_eq!(remove_quotes!("'./file80_test.cs'"), "./file80_test.cs");
-		assert_ne!(remove_quotes!("'/to_to_/file23_test.cs'"), "'/to_to_/file23_test.cs'");
-		assert_ne!(remove_quotes!("\"/to_to_/file23_test.cs\""), "\"/to_to_/file23_test.cs\"");
+		assert_eq!(crate::remove_quotes!("\"./file76_test.cs\""), "./file76_test.cs");
+		assert_eq!(crate::remove_quotes!("'./file80_test.cs'"), "./file80_test.cs");
+		assert_ne!(crate::remove_quotes!("'/to_to_/file23_test.cs'"), "'/to_to_/file23_test.cs'");
+		assert_ne!(crate::remove_quotes!("\"/to_to_/file23_test.cs\""), "\"/to_to_/file23_test.cs\"");
 	}
 }
 
@@ -24,7 +23,10 @@ mod finder {
 
 	pub fn find_import(line: &str) -> Option<&str> {
 		lazy_static! {
-			static ref RE_IMPORT: Regex = Regex::new(crate::DEFAULT_IMPORTER_REGEX).unwrap();
+			static ref RE_IMPORT: Regex = Regex::new(
+				&*dotenv::var("IMPORTER_REGEX").unwrap_or(r#"importar\((.*?)\)|import\((.*?)\)"#.to_string())
+			)
+			.unwrap();
 		}
 		match RE_IMPORT.captures(line) {
 			Some(caps) => {
@@ -64,18 +66,33 @@ mod includer {
 	}
 
 	pub fn import(path: &str, callcheck: fn(String) -> Option<&'static str>) -> Result<(), ()> {
-		//let output_file =
-		// OpenOptions::new().read(true).create(true).write(true).truncate(true).open(crate::DEFAULT_OUTPUT_FILE); match
-		// output_file { 	Err(why) => {
-		//		println!("Output file cannot be opened! {}", why);
-		//		return Err(());
-		//	}
-		//	Ok(_) => {
-		//		println!("Output file opened...");
-		//	}
-		//};
+		let mut output_file = OpenOptions::new()
+			.read(true)
+			.write(true)
+			.truncate(true)
+			.open(&*dotenv::var("OUTPUT_FILE").unwrap_or("./release/transpiled.cs".to_string()));
+		let open_output = |cfile: Result<File, io::Error>| match cfile {
+			Ok(_) => {
+				println!("Output file opened...");
+				Ok(())
+			}
+			Err(why) => {
+				println!("Output file cannot be opened! {}", why);
+				Err(())
+			}
+		};
+		if open_output(output_file).is_err() {
+			println!("Creating output file...");
+			std::fs::create_dir_all(
+				(Path::new(&*dotenv::var("OUTPUT_FILE").unwrap_or("./release/transpiled.cs".to_string())))
+					.parent()
+					.unwrap()
+			)
+			.unwrap();
+			println!("File created!");
+		}
 
-		if let Ok(lines) = self::read_lines(path) {
+		if let Ok(lines) = self::read_lines(crate::remove_quotes!(path)) {
 			for line in lines {
 				if let Ok(_content) = line {
 					match callcheck(_content) {
@@ -98,4 +115,4 @@ mod includer {
 	}
 }
 
-fn main() {}
+fn main() { dotenv().ok(); }
