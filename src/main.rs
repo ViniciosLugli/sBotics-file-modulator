@@ -1,10 +1,18 @@
+use ansi_term::Colour;
+use chrono::{DateTime, Local};
 use dotenv::dotenv;
-
 pub mod utils {
 	#[macro_export]
 	macro_rules! remove_quotes {
 		($s:expr) => {{
 			$s.replace(&['\"', '\''][..], "")
+		}};
+	}
+
+	#[macro_export]
+	macro_rules! clear_console {
+		() => {{
+			print!("\x1B[2J\x1B[1;1H");
 		}};
 	}
 
@@ -27,7 +35,12 @@ mod finder {
 				&*dotenv::var("IMPORTER_REGEX").unwrap_or(r#"importar\((.*?)\)|import\((.*?)\)"#.to_string())
 			)
 			.unwrap();
-		}
+			static ref RE_COMMENTS: Regex = Regex::new(
+				&*dotenv::var("COMMENT_REGEX")
+					.unwrap_or(r#"(/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+\/)|(\/\/.*)|(#.*)"#.to_string())
+			)
+			.unwrap();
+		};
 		match RE_IMPORT.captures(line) {
 			Some(caps) => {
 				if let Some(caps) = caps.get(1) {
@@ -77,11 +90,8 @@ mod includer {
 		io::{self, BufRead},
 		path::Path
 	};
-
-	use crate::finder;
-
 	pub fn open_output() -> File {
-		let _path_ss = &*dotenv::var("OUTPUT_FILE_unw").unwrap_or("./release/transpiled.cs".to_string());
+		let _path_ss = &*dotenv::var("OUTPUT_FILE").unwrap_or("./release/transpiled.cs".to_string());
 		let _path_tc = Path::new(_path_ss);
 		let mut output_file_unw = OpenOptions::new().write(true).truncate(true).open(_path_tc);
 
@@ -106,15 +116,20 @@ mod includer {
 		if idents.is_none() {
 			idents = Some("");
 		}
-		if let Ok(lines) = self::read_lines(crate::remove_quotes!(path)) {
+		if let Ok(lines) = self::read_lines(crate::remove_quotes!(format!(
+			"{}{}",
+			&*dotenv::var("WATCH_FOLDER").unwrap_or("./src".to_string()),
+			path
+		))) {
 			for line in lines {
 				if let Ok(_content) = line {
-					println!("Tabs: {:?}", finder::find_tabs(&_content));
-					let line_content = format!("{tabs}{content}\n", tabs = idents.unwrap(), content = &_content);
-					if let Some(_path) = finder::find_import(&_content) {
-						self::import(_path, output_file, Some(finder::find_tabs(&_content))).unwrap_or(());
+					let line_content =
+						format!("{tabs}{content}\n", tabs = idents.unwrap(), content = &_content);
+					if let Some(_path) = crate::finder::find_import(&_content) {
+						println!("{}", crate::Colour::Green.italic().paint(format!("importing {}", _path)));
+						self::import(_path, output_file, Some(crate::finder::find_tabs(&_content)))
+							.unwrap_or(());
 					} else {
-						println!("Write: {}", line_content);
 						io::Write::write(output_file, line_content.as_bytes()).unwrap();
 					}
 				}
@@ -129,14 +144,50 @@ mod includer {
 	#[test]
 	fn _import() {
 		let mut output_file = self::open_output();
-		assert!(self::import("./src/main.rs", &mut output_file, None).is_ok());
-		assert!(self::import("./notexistfile.txt", &mut output_fil, None).is_err());
+		assert!(self::import("main.rs", &mut output_file, None).is_ok());
+		assert!(self::import("./notexistfile.txt", &mut output_file, None).is_err());
+	}
+}
+
+mod watcher {
+	use notify::{watcher, DebouncedEvent, RecursiveMode, Watcher};
+	use std::{sync::mpsc::channel, time::Duration};
+	pub fn main(callback: fn() -> ()) {
+		let (tx, rx) = channel();
+
+		let mut watcher = watcher(tx, Duration::from_millis(500)).unwrap();
+
+		watcher
+			.watch(&*dotenv::var("WATCH_FOLDER").unwrap_or("./src".to_string()), RecursiveMode::Recursive)
+			.unwrap();
+		loop {
+			match rx.recv() {
+				Ok(event) => match event {
+					DebouncedEvent::Write(_) => callback(),
+					_ => ()
+				},
+				Err(e) => println!("watch error: {:?}", e)
+			}
+		}
 	}
 }
 
 fn main() {
 	dotenv().ok();
-	let mut output_file = includer::open_output();
-	includer::import(&*dotenv::var("INPUT_FILE").unwrap_or("./src/main.cs".to_string()), &mut output_file, None)
+	clear_console!();
+	watcher::main(|| {
+		clear_console!();
+		println!("{}", Colour::Cyan.bold().paint("Retranspiling..."));
+		let mut output_file = includer::open_output();
+		includer::import(
+			&*dotenv::var("INPUT_FILE").unwrap_or("main.cs".to_string()),
+			&mut output_file,
+			None
+		)
 		.unwrap();
+		println!(
+			"{}",
+			Colour::Purple.bold().paint(format!("Last transpile at {}", Local::now().format("%H:%M:%S")))
+		);
+	});
 }
