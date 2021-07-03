@@ -118,7 +118,7 @@ mod includer {
 		}
 		if let Ok(lines) = self::read_lines(crate::remove_quotes!(format!(
 			"{}{}",
-			&*dotenv::var("WATCH_FOLDER").unwrap_or("./src".to_string()),
+			&*dotenv::var("WATCH_FOLDER").unwrap_or("./src/".to_string()),
 			path
 		))) {
 			for line in lines {
