@@ -1,6 +1,7 @@
-use ansi_term::Colour;
-use chrono::{DateTime, Local};
+use chrono::Local;
+use colored::*;
 use dotenv::dotenv;
+
 pub mod utils {
 	#[macro_export]
 	macro_rules! remove_quotes {
@@ -31,13 +32,10 @@ mod finder {
 
 	pub fn find_import(line: &str) -> Option<&str> {
 		lazy_static! {
-			static ref RE_IMPORT: Regex = Regex::new(
-				&*dotenv::var("IMPORTER_REGEX").unwrap_or(r#"importar\((.*?)\)|import\((.*?)\)"#.to_string())
-			)
-			.unwrap();
+			static ref RE_IMPORT: Regex =
+				Regex::new(&*dotenv::var("IMPORTER_REGEX").unwrap_or(r#"importar\((.*?)\)|import\((.*?)\)"#.to_string())).unwrap();
 			static ref RE_COMMENTS: Regex = Regex::new(
-				&*dotenv::var("COMMENT_REGEX")
-					.unwrap_or(r#"(/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+\/)|(\/\/.*)|(#.*)"#.to_string())
+				&*dotenv::var("COMMENT_REGEX").unwrap_or(r#"(/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+\/)|(\/\/.*)|(#.*)"#.to_string())
 			)
 			.unwrap();
 		};
@@ -55,8 +53,7 @@ mod finder {
 
 	pub fn find_tabs(line: &str) -> &str {
 		lazy_static! {
-			static ref RE_TABS: Regex =
-				Regex::new(&*dotenv::var("TABS_REGEX").unwrap_or(r#"^(?:( )+|\t+)"#.to_string())).unwrap();
+			static ref RE_TABS: Regex = Regex::new(&*dotenv::var("TABS_REGEX").unwrap_or(r#"^(?:( )+|\t+)"#.to_string())).unwrap();
 		}
 		match RE_TABS.captures(line) {
 			Some(caps) => return caps.get(0).unwrap().as_str(),
@@ -76,15 +73,13 @@ mod finder {
 	fn _find_import() {
 		assert!(self::find_import("importar(\"./somepath/file61_test.cs\")").is_some());
 		assert!(self::find_import("import(\"file52_test.cs\")").is_some());
-		assert_eq!(
-			self::find_import("importar(\"./somepath/file21_test.cs\")").unwrap(),
-			"\"./somepath/file21_test.cs\""
-		);
+		assert_eq!(self::find_import("importar(\"./somepath/file21_test.cs\")").unwrap(), "\"./somepath/file21_test.cs\"");
 		assert_eq!(self::find_import("import(\"file32_test.cs\")").unwrap(), "\"file32_test.cs\"");
 	}
 }
 
 mod includer {
+	use colored::*;
 	use std::{
 		fs::*,
 		io::{self, BufRead},
@@ -96,12 +91,12 @@ mod includer {
 		let mut output_file_unw = OpenOptions::new().write(true).truncate(true).open(_path_tc);
 
 		if output_file_unw.is_err() {
-			println!("Creating output file...");
+			println!("{}", "Creating output file...".red());
 
 			create_dir_all(_path_tc.parent().unwrap()).unwrap();
 			File::create(_path_tc).unwrap();
 			output_file_unw = std::fs::OpenOptions::new().write(true).truncate(true).open(_path_tc);
-			println!("File created!");
+			println!("{}", "File created!".red());
 		}
 		output_file_unw.unwrap()
 	}
@@ -116,26 +111,22 @@ mod includer {
 		if idents.is_none() {
 			idents = Some("");
 		}
-		if let Ok(lines) = self::read_lines(crate::remove_quotes!(format!(
-			"{}{}",
-			&*dotenv::var("WATCH_FOLDER").unwrap_or("./src/".to_string()),
-			path
-		))) {
+		if let Ok(lines) =
+			self::read_lines(crate::remove_quotes!(format!("{}{}", &*dotenv::var("WATCH_FOLDER").unwrap_or("./src/".to_string()), path)))
+		{
 			for line in lines {
 				if let Ok(_content) = line {
-					let line_content =
-						format!("{tabs}{content}\n", tabs = idents.unwrap(), content = &_content);
+					let line_content = format!("{tabs}{content}\n", tabs = idents.unwrap(), content = &_content);
 					if let Some(_path) = crate::finder::find_import(&_content) {
-						println!("{}", crate::Colour::Green.italic().paint(format!("importing {}", _path)));
-						self::import(_path, output_file, Some(crate::finder::find_tabs(&_content)))
-							.unwrap_or(());
+						println!("{}", format!("importing {}...", crate::remove_quotes!(_path)).green());
+						self::import(_path, output_file, Some(crate::finder::find_tabs(&_content))).unwrap_or(());
 					} else {
 						io::Write::write(output_file, line_content.as_bytes()).unwrap();
 					}
 				}
 			}
 		} else {
-			println!("File path '{}' could not be opened", path);
+			println!("{}", format!("File path '{}' could not be opened", path).bright_red());
 			return Err(());
 		}
 		Ok(())
@@ -152,14 +143,14 @@ mod includer {
 mod watcher {
 	use notify::{watcher, DebouncedEvent, RecursiveMode, Watcher};
 	use std::{sync::mpsc::channel, time::Duration};
+
 	pub fn main(callback: fn() -> ()) {
+		callback();
+
 		let (tx, rx) = channel();
-
 		let mut watcher = watcher(tx, Duration::from_millis(500)).unwrap();
+		watcher.watch(&*dotenv::var("WATCH_FOLDER").unwrap_or("./src".to_string()), RecursiveMode::Recursive).unwrap();
 
-		watcher
-			.watch(&*dotenv::var("WATCH_FOLDER").unwrap_or("./src".to_string()), RecursiveMode::Recursive)
-			.unwrap();
 		loop {
 			match rx.recv() {
 				Ok(event) => match event {
@@ -174,20 +165,14 @@ mod watcher {
 
 fn main() {
 	dotenv().ok();
-	clear_console!();
-	watcher::main(|| {
+
+	fn callback() -> () {
 		clear_console!();
-		println!("{}", Colour::Cyan.bold().paint("Retranspiling..."));
+		println!("{}", "Retranspiling...".cyan().bold());
 		let mut output_file = includer::open_output();
-		includer::import(
-			&*dotenv::var("INPUT_FILE").unwrap_or("main.cs".to_string()),
-			&mut output_file,
-			None
-		)
-		.unwrap();
-		println!(
-			"{}",
-			Colour::Purple.bold().paint(format!("Last transpile at {}", Local::now().format("%H:%M:%S")))
-		);
-	});
+		includer::import(&*dotenv::var("INPUT_FILE").unwrap_or("main.cs".to_string()), &mut output_file, None).unwrap();
+		println!("{}", format!("Last transpile at {}", Local::now().format("%H:%M:%S")).purple().bold());
+	}
+
+	watcher::main(callback);
 }
