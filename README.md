@@ -23,11 +23,11 @@ A file modulator for big files, separating them, enabling the organization of th
 ## Example:
 **Root:**
 
-![alt text](./res/example_folder.png)
+![example folder](./res/example_folder.png)
 
 **Subfolders:**
 
-![alt text](./res/example_subfolders.png)
+![example subfolders](./res/example_subfolders.png)
 
 **Contents:**
 
