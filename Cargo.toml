@@ -1,6 +1,6 @@
 [package]
 name = "sbotics-file-modulator"
-version = "0.0.4"
+version = "0.0.5"
 description = "File modulator for sBotics"
 authors = ["Vinicios Lugli <vinicioslugli@gmail.com>"]
 edition = "2018"
