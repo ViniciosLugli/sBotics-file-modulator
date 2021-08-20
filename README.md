@@ -69,3 +69,4 @@ After run the sBotics File modulator which is in the root folder, the contents o
 - After save any file inside the `WATCH_FOLDER` path, the output is automatically updated!
 - For import files you can use `import` or `importar` prefix function.
 - The example can be found in [this repository](./example)
+- Realeases are for 64-bit architectures only, but you can build your own executable :)
