@@ -6,7 +6,7 @@ A file modulator for big files, separating them, enabling the organization of th
 
 ## Features:
 - join multiple files / importing files.
-
+- ignore commented imports.
 ---
 
 ## Setup:

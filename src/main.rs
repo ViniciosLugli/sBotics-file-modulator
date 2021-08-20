@@ -61,8 +61,21 @@ mod finder {
 		};
 	}
 
+	pub fn find_commented(line: &str) -> bool {
+		lazy_static! {
+			static ref RE_TABS: Regex = Regex::new(
+				&*dotenv::var("COMMENT_REGEX").unwrap_or(r#"(/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/)|(//.*)|(#.*)"#.to_string())
+			)
+			.unwrap();
+		}
+		match RE_TABS.captures(line) {
+			Some(caps) => return caps.get(0).unwrap().as_str().len() > 0,
+			None => return false
+		};
+	}
+
 	#[test]
-	fn _find_tabs() {
+	fn _find_tabs_test() {
 		assert_eq!(self::find_tabs("teste"), "");
 		assert_eq!(self::find_tabs("teste\t\t"), "");
 		assert_eq!(self::find_tabs("\t\t\tteste"), "\t\t\t");
@@ -70,11 +83,20 @@ mod finder {
 	}
 
 	#[test]
-	fn _find_import() {
+	fn _find_import_test() {
 		assert!(self::find_import("importar(\"./somepath/file61_test.cs\")").is_some());
 		assert!(self::find_import("import(\"file52_test.cs\")").is_some());
 		assert_eq!(self::find_import("importar(\"./somepath/file21_test.cs\")").unwrap(), "\"./somepath/file21_test.cs\"");
 		assert_eq!(self::find_import("import(\"file32_test.cs\")").unwrap(), "\"file32_test.cs\"");
+	}
+
+	#[test]
+	fn _find_commented_test() {
+		assert!(self::find_commented("//teste"));
+		assert!(self::find_commented("/*tester 2 kkkkk*/"));
+		assert!(self::find_commented("#teste/;3"));
+		assert!(!self::find_commented("a b c d e / f g h i * k / 3"));
+		assert!(!self::find_commented("/*/"));
 	}
 }
 
@@ -118,11 +140,13 @@ mod includer {
 				if let Ok(_content) = line {
 					let line_content = format!("{tabs}{content}\n", tabs = idents.unwrap(), content = &_content);
 					if let Some(_path) = crate::finder::find_import(&_content) {
-						println!("{}", format!("importing {}...", crate::remove_quotes!(_path)).green());
-						self::import(_path, output_file, Some(crate::finder::find_tabs(&_content))).unwrap_or(());
-					} else {
-						io::Write::write(output_file, line_content.as_bytes()).unwrap();
+						if !crate::finder::find_commented(&_content) {
+							println!("{}", format!("importing {}...", crate::remove_quotes!(_path)).green());
+							self::import(_path, output_file, Some(crate::finder::find_tabs(&_content))).unwrap_or(());
+							continue;
+						}
 					}
+					io::Write::write(output_file, line_content.as_bytes()).unwrap();
 				}
 			}
 		} else {
