@@ -129,7 +129,10 @@ mod includer {
 		Ok(io::BufReader::new(file).lines())
 	}
 
-	pub fn import(path: &str, output_file: &mut File, mut idents: Option<&str>) -> Result<(), ()> {
+	pub fn import(path: &str, output_file: &mut File, mut idents: Option<&str>, after_import_env: bool) -> Result<(), ()> {
+		if after_import_env {
+			io::Write::write(output_file, &*dotenv::var("AFTER_IMPORT").unwrap_or("".to_string()).as_bytes()).unwrap();
+		}
 		if idents.is_none() {
 			idents = Some("");
 		}
@@ -142,7 +145,7 @@ mod includer {
 					if let Some(_path) = crate::finder::find_import(&_content) {
 						if !crate::finder::find_commented(&_content) {
 							println!("{}", format!("importing {}...", crate::remove_quotes!(_path)).green());
-							self::import(_path, output_file, Some(crate::finder::find_tabs(&_content))).unwrap_or(());
+							self::import(_path, output_file, Some(crate::finder::find_tabs(&_content)), true).unwrap_or(());
 							continue;
 						}
 					}
@@ -159,8 +162,8 @@ mod includer {
 	#[test]
 	fn _import() {
 		let mut output_file = self::open_output();
-		assert!(self::import("main.rs", &mut output_file, None).is_ok());
-		assert!(self::import("./notexistfile.txt", &mut output_file, None).is_err());
+		assert!(self::import("main.rs", &mut output_file, None, false).is_ok());
+		assert!(self::import("./notexistfile.txt", &mut output_file, None, false).is_err());
 	}
 }
 
@@ -194,7 +197,7 @@ fn main() {
 		clear_console!();
 		println!("{}", "Retranspiling...".cyan().bold());
 		let mut output_file = includer::open_output();
-		includer::import(&*dotenv::var("INPUT_FILE").unwrap_or("main.cs".to_string()), &mut output_file, None).unwrap();
+		includer::import(&*dotenv::var("INPUT_FILE").unwrap_or("main.cs".to_string()), &mut output_file, None, false).unwrap();
 		println!("{}", format!("Last transpile at {}", Local::now().format("%H:%M:%S")).purple().bold());
 	}
 

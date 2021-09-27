@@ -13,3 +13,7 @@ dotenv_codegen = "0.15.0"
 notify = "4.0.17"
 colored = "2"
 chrono = "0.4.19"
+
+[profile.release]
+opt-level = "z"
+codegen-units = 1
