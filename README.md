@@ -37,6 +37,7 @@ _.env_
 WATCH_FOLDER = "./source/" # Example main folder to sources
 INPUT_FILE = "main.cs" # Main file name with extension, it should be in your watch folder.
 OUTPUT_FILE = "./output/transpiled.cs" # Your output file path with extension
+AFTER_IMPORT = "\n" # String which will be loaded after finding a file to import
 
 # Change if you have an idea of ​​what you are doing
 IMPORTER_REGEX = "importar\((.*?)\)|import\((.*?)\)" # Regex of importer
@@ -62,6 +63,7 @@ _source/subfolder/file_subfolder.cs_
 After run the sBotics File modulator which is in the root folder, the contents of the `output/transpiled.cs` file is updated to:
 ```cs
 //Hi, i'm file1
+
 //Hi, i'm file_subfolder
 ```
 ---
