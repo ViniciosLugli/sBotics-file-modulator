@@ -379,7 +379,7 @@ dependencies = [
 
 [[package]]
 name = "sbotics-file-modulator"
-version = "0.0.5"
+version = "0.1.0"
 dependencies = [
  "chrono",
  "colored",
